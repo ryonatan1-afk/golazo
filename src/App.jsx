@@ -250,6 +250,7 @@ export default function App(){
   const [lName,setLName]=useState("");
   const [jCode,setJCode]=useState("");
   const [lMode,setLMode]=useState(null);
+  const [pendingJoin,setPendingJoin]=useState(()=>{const p=new URLSearchParams(window.location.search);return p.get("join")||null;});
 
   useEffect(()=>{(async()=>{
     const s=await loadState();
@@ -281,7 +282,8 @@ export default function App(){
   useEffect(()=>{if(!ready||!profile||step!=="app"||!myLeagues.length)return;const m=bldMember();myLeagues.forEach(l=>pushMember(l.code,m));},[ready,profile,step,agentId,favTeam,played,myBank,myPnl]);
   async function refreshL(code){setRefreshing(true);const ms=await fetchMembers(code);setLeagueMembers(s=>({...s,[code]:ms}));setRefreshing(false);}
   async function handleCreate(){if(!lName.trim())return;setBusy(true);let code=null;for(let i=0;i<5;i++){const c=genCode();const ex=await sGet("league:"+c);if(!ex){code=c;break;}}if(!code){setBusy(false);notify("Couldn't create — try again.");return;}await sSet("league:"+code,{code,name:lName.trim(),createdBy:profile.userId,createdAt:Date.now()});await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:lName.trim()}]);setLName("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);notify("League created! Share code "+code+" 🏆");}
-  async function handleJoin(){const code=jCode.trim().toUpperCase();if(myLeagues.some(l=>l.code===code)){setLeagueView(code);refreshL(code);setJCode("");setLMode(null);return;}setBusy(true);const doc=await sGet("league:"+code);if(!doc){setBusy(false);notify("No league with that code.");return;}await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:doc.name}]);setJCode("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);notify('Joined "'+doc.name+'" — go get them.');}
+  async function handleJoin(overrideCode){const code=(overrideCode||jCode).trim().toUpperCase();if(myLeagues.some(l=>l.code===code)){setLeagueView(code);refreshL(code);setJCode("");setLMode(null);return;}setBusy(true);const doc=await sGet("league:"+code);if(!doc){setBusy(false);notify("No league with that code.");return;}await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:doc.name}]);setJCode("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);notify('Joined "'+doc.name+'" — go get them 🏆');}
+  useEffect(()=>{if(!pendingJoin||!profile||step!=="app")return;window.history.replaceState({},"",window.location.pathname);const c=pendingJoin;setPendingJoin(null);handleJoin(c);},[pendingJoin,profile,step]);
   async function fastForward(){let s=await sGet("golazo-md1-seed");if(s==null){s=Math.floor(Math.random()*2147483647);await sSet("golazo-md1-seed",s);}setSeed(s);setPlayed(true);setTab("matches");}
   async function resetAll(){try{await window.storage.delete(KEY);}catch{}setStep("welcome");setAgentId(null);setFavTeam(null);setTab("matches");setStakes(Object.fromEntries(MATCHES.map(m=>[m.id,50])));setLocked(false);setSeed(null);setPlayed(false);setProfile(null);setMyLeagues([]);setLeagueView(null);setLeagueMembers({});}
 
@@ -327,7 +329,7 @@ export default function App(){
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             {Object.keys(R).map(t=><button key={t} onClick={()=>setFavTeam(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 11px",borderRadius:11,border:"1.5px solid "+(favTeam===t?P:"#E3E8E1"),background:favTeam===t?"#EAF6EE":"#fff",fontWeight:700,fontSize:13,cursor:"pointer",color:"#121A14"}}><span style={{fontSize:16}}>{FLAG[t]}</span>{t}</button>)}
           </div>
-          <div style={{marginTop:14}}><button className="cta" disabled={!favTeam} onClick={()=>{setStep("app");notify("1,000 coins in the bank. Matchday 1 is live. ⚽");}}>{favTeam?"Kick off with "+favTeam+" "+FLAG[favTeam]:"Pick a team to continue"}</button></div>
+          <div style={{marginTop:14}}><button className="cta" disabled={!favTeam} onClick={()=>{setStep("app");if(pendingJoin){setTab("table");notify("Almost in! Set up your player card to join the league.");}else{notify("1,000 coins in the bank. Matchday 1 is live. ⚽");}}}>{favTeam?"Kick off with "+favTeam+" "+FLAG[favTeam]:"Pick a team to continue"}</button></div>
         </div>}
       </div>
     </div>
@@ -396,8 +398,9 @@ export default function App(){
               </div>
               <div style={{background:PD,color:"#fff",borderRadius:18,padding:"13px 16px",margin:"10px 0"}}>
                 <Eyebrow color="#9FD6B4">Invite friends</Eyebrow>
-                <div style={{fontSize:26,fontWeight:900,letterSpacing:"0.2em",margin:"4px 0"}}>{league.code}</div>
-                <div style={{fontSize:12,color:"#DFF1E5",lineHeight:1.5}}>Send them this link. They open it, pick an agent, then Leagues → Join with code.</div>
+                <div style={{fontSize:26,fontWeight:900,letterSpacing:"0.2em",margin:"4px 0 2px"}}>{league.code}</div>
+                <div style={{fontSize:11,color:"#9FD6B4",marginBottom:10,fontWeight:600}}>Or just send them the link — one tap to join.</div>
+                <button onClick={()=>{const link=window.location.origin+"?join="+league.code;navigator.clipboard.writeText(link).then(()=>notify("Link copied! 🔗 Share it anywhere."));}} style={{width:"100%",padding:"11px",borderRadius:12,border:"1.5px solid rgba(255,255,255,0.35)",background:"rgba(255,255,255,0.15)",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",letterSpacing:"0.01em"}}>📋 Copy invite link</button>
               </div>
               <div style={{background:"#fff",borderRadius:18,overflow:"hidden",boxShadow:"0 4px 16px rgba(18,26,20,0.06)"}}>
                 {!rows.length&&<div style={{padding:16,fontSize:13,color:"#5B6660"}}>No players yet — share the code and hit refresh.</div>}
