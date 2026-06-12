@@ -51,6 +51,7 @@ const FRIENDS = [
 const DARLINGS = ["Brazil","Mexico","USA","Germany"];
 const AVATARS = ["🦊","🐯","🦁","🐸","🐙","🦄","🐼","🦅"];
 
+function track(n,p){if(typeof window.gtag==="function")window.gtag("event",n,p||{});}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
 function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function poisson(lambda,rnd){const L=Math.exp(-lambda);let k=0,p=1;do{k++;p*=rnd();}while(p>L);return k-1;}
@@ -281,8 +282,8 @@ export default function App(){
   function bldMember(){return{userId:profile.userId,name:profile.name,emoji:profile.emoji,agentId,favTeam,played,bank:played?myBank:1000,pnl:played?myPnl:0,ts:Date.now()};}
   useEffect(()=>{if(!ready||!profile||step!=="app"||!myLeagues.length)return;const m=bldMember();myLeagues.forEach(l=>pushMember(l.code,m));},[ready,profile,step,agentId,favTeam,played,myBank,myPnl]);
   async function refreshL(code){setRefreshing(true);const ms=await fetchMembers(code);setLeagueMembers(s=>({...s,[code]:ms}));setRefreshing(false);}
-  async function handleCreate(){if(!lName.trim())return;setBusy(true);let code=null;for(let i=0;i<5;i++){const c=genCode();const ex=await sGet("league:"+c);if(!ex){code=c;break;}}if(!code){setBusy(false);notify("Couldn't create — try again.");return;}await sSet("league:"+code,{code,name:lName.trim(),createdBy:profile.userId,createdAt:Date.now()});await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:lName.trim()}]);setLName("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);notify("League created! Share code "+code+" 🏆");}
-  async function handleJoin(overrideCode){const code=(overrideCode||jCode).trim().toUpperCase();if(myLeagues.some(l=>l.code===code)){setLeagueView(code);refreshL(code);setJCode("");setLMode(null);return;}setBusy(true);const doc=await sGet("league:"+code);if(!doc){setBusy(false);notify("No league with that code.");return;}await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:doc.name}]);setJCode("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);notify('Joined "'+doc.name+'" — go get them 🏆');}
+  async function handleCreate(){if(!lName.trim())return;setBusy(true);let code=null;for(let i=0;i<5;i++){const c=genCode();const ex=await sGet("league:"+c);if(!ex){code=c;break;}}if(!code){setBusy(false);notify("Couldn't create — try again.");return;}await sSet("league:"+code,{code,name:lName.trim(),createdBy:profile.userId,createdAt:Date.now()});await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:lName.trim()}]);setLName("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);track("league_create",{league_code:code});notify("League created! Share code "+code+" 🏆");}
+  async function handleJoin(overrideCode){const code=(overrideCode||jCode).trim().toUpperCase();if(myLeagues.some(l=>l.code===code)){setLeagueView(code);refreshL(code);setJCode("");setLMode(null);return;}setBusy(true);const doc=await sGet("league:"+code);if(!doc){setBusy(false);notify("No league with that code.");return;}await pushMember(code,bldMember());setMyLeagues(ls=>[...ls,{code,name:doc.name}]);setJCode("");setLMode(null);setBusy(false);setLeagueView(code);refreshL(code);track("league_join",{league_code:code});notify('Joined "'+doc.name+'" — go get them 🏆');}
   useEffect(()=>{if(!pendingJoin||!profile||step!=="app")return;window.history.replaceState({},"",window.location.pathname);const c=pendingJoin;setPendingJoin(null);handleJoin(c);},[pendingJoin,profile,step]);
   async function fastForward(){let s=await sGet("golazo-md1-seed");if(s==null){s=Math.floor(Math.random()*2147483647);await sSet("golazo-md1-seed",s);}setSeed(s);setPlayed(true);setTab("matches");}
   async function resetAll(){try{await window.storage.delete(KEY);}catch{}setStep("welcome");setAgentId(null);setFavTeam(null);setTab("matches");setStakes(Object.fromEntries(MATCHES.map(m=>[m.id,50])));setLocked(false);setSeed(null);setPlayed(false);setProfile(null);setMyLeagues([]);setLeagueView(null);setLeagueMembers({});}
@@ -310,7 +311,7 @@ export default function App(){
               <div key={i} style={{display:"flex",gap:11,padding:"6px 0",fontSize:13,lineHeight:1.45,color:"#5B6660"}}><span style={{fontSize:16}}>{e}</span><span>{t}</span></div>
             ))}
           </div>
-          <div style={{marginTop:12}}><button className="cta" onClick={()=>setStep("agent")}>Choose your agent →</button></div>
+          <div style={{marginTop:12}}><button className="cta" onClick={()=>{track("onboarding_start");setStep("agent");}}>Choose your agent →</button></div>
           <p style={{textAlign:"center",fontSize:11,color:"#5B6660",marginTop:8}}>Play-money only. No real betting.</p>
         </div>}
 
@@ -318,8 +319,8 @@ export default function App(){
           <Eyebrow color={P}>Step 1 of 2</Eyebrow>
           <h2 style={{fontSize:24,fontWeight:900,letterSpacing:"-0.03em",margin:"5px 0 3px"}}>Who bets for you?</h2>
           <p style={{color:"#5B6660",fontSize:13,margin:"0 0 12px"}}>You can switch agents between matchdays — for a fee.</p>
-          <div style={{display:"grid",gap:9}}>{AGENTS.map(a=><AgentCard key={a.id} a={a} selected={agentId===a.id} onSelect={()=>setAgentId(a.id)}/>)}</div>
-          <div style={{marginTop:12}}><button className="cta" disabled={!agentId} onClick={()=>setStep("team")}>{agentId?"Sign "+AGENTS.find(a=>a.id===agentId).name+" →":"Pick an agent to continue"}</button></div>
+          <div style={{display:"grid",gap:9}}>{AGENTS.map(a=><AgentCard key={a.id} a={a} selected={agentId===a.id} onSelect={()=>{setAgentId(a.id);track("agent_select",{agent_id:a.id});}}/>)}</div>
+          <div style={{marginTop:12}}><button className="cta" disabled={!agentId} onClick={()=>{track("agent_confirm",{agent_id:agentId});setStep("team");}}>{agentId?"Sign "+AGENTS.find(a=>a.id===agentId).name+" →":"Pick an agent to continue"}</button></div>
         </div>}
 
         {step==="team"&&<div className="fade">
@@ -327,9 +328,9 @@ export default function App(){
           <h2 style={{fontSize:24,fontWeight:900,letterSpacing:"-0.03em",margin:"5px 0 3px"}}>Pick your team</h2>
           <p style={{color:"#5B6660",fontSize:13,margin:"0 0 12px"}}>The Homer backs them blindly. Every agent trash-talks them.</p>
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-            {Object.keys(R).map(t=><button key={t} onClick={()=>setFavTeam(t)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 11px",borderRadius:11,border:"1.5px solid "+(favTeam===t?P:"#E3E8E1"),background:favTeam===t?"#EAF6EE":"#fff",fontWeight:700,fontSize:13,cursor:"pointer",color:"#121A14"}}><span style={{fontSize:16}}>{FLAG[t]}</span>{t}</button>)}
+            {Object.keys(R).map(t=><button key={t} onClick={()=>{setFavTeam(t);track("team_select",{team:t});}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 11px",borderRadius:11,border:"1.5px solid "+(favTeam===t?P:"#E3E8E1"),background:favTeam===t?"#EAF6EE":"#fff",fontWeight:700,fontSize:13,cursor:"pointer",color:"#121A14"}}><span style={{fontSize:16}}>{FLAG[t]}</span>{t}</button>)}
           </div>
-          <div style={{marginTop:14}}><button className="cta" disabled={!favTeam} onClick={()=>{setStep("app");if(pendingJoin){setTab("table");notify("Almost in! Set up your player card to join the league.");}else{notify("1,000 coins in the bank. Matchday 1 is live. ⚽");}}}>{favTeam?"Kick off with "+favTeam+" "+FLAG[favTeam]:"Pick a team to continue"}</button></div>
+          <div style={{marginTop:14}}><button className="cta" disabled={!favTeam} onClick={()=>{track("onboarding_complete",{agent_id:agentId,fav_team:favTeam,via_invite:!!pendingJoin});setStep("app");if(pendingJoin){setTab("table");notify("Almost in! Set up your player card to join the league.");}else{notify("1,000 coins in the bank. Matchday 1 is live. ⚽");}}}>{favTeam?"Kick off with "+favTeam+" "+FLAG[favTeam]:"Pick a team to continue"}</button></div>
         </div>}
       </div>
     </div>
@@ -361,8 +362,8 @@ export default function App(){
           )}
           <div style={{display:"grid",gap:10}}>{MATCHES.map(m=><MatchTicket key={m.id} m={m} agent={agent} picks={myPicks[m.id]} stake={stakes[m.id]||0} setStake={v=>setStakes(s=>({...s,[m.id]:v}))} locked={locked} sim={sims?sims[m.id]:null} settled={mySettles?mySettles[m.id]:null}/>)}</div>
           {!played&&<div style={{marginTop:12,display:"grid",gap:8}}>
-            {!locked?<button className="cta" disabled={totalStaked>1000} onClick={()=>{if(totalStaked>1000){notify("Over bankroll — trim stakes.");return;}setLocked(true);notify("Locked! Your agent is on the clock. ⚽");}}>{totalStaked>1000?"Over bankroll — lower stakes":"Lock Matchday 1 · "+totalStaked+" coins"}</button>
-            :<button className="cta" style={{background:Y,color:"#121A14"}} onClick={fastForward}>⏩ Fast-forward matchday (demo)</button>}
+            {!locked?<button className="cta" disabled={totalStaked>1000} onClick={()=>{if(totalStaked>1000){notify("Over bankroll — trim stakes.");return;}setLocked(true);track("matchday_lock",{total_staked:totalStaked,agent_id:agentId});notify("Locked! Your agent is on the clock. ⚽");}}>{totalStaked>1000?"Over bankroll — lower stakes":"Lock Matchday 1 · "+totalStaked+" coins"}</button>
+            :<button className="cta" style={{background:Y,color:"#121A14"}} onClick={()=>{track("matchday_simulate",{agent_id:agentId});fastForward();}}>⏩ Fast-forward matchday (demo)</button>}
             <p style={{textAlign:"center",fontSize:11,color:"#5B6660",margin:0}}>{locked?"Demo simulates instantly. Live version uses real scores.":"Lock to put your agent on record."}</p>
           </div>}
         </div>}
@@ -370,7 +371,7 @@ export default function App(){
         {tab==="agents"&&<div className="fade">
           <h2 style={{fontSize:20,fontWeight:900,letterSpacing:"-0.03em",margin:"0 0 3px"}}>The catalogue</h2>
           <p style={{fontSize:12,color:"#5B6660",margin:"0 0 10px"}}>{played?"MD1 form at flat 50-coin stakes.":"Tap to switch — free until matchday locked."}</p>
-          <div style={{display:"grid",gap:9}}>{AGENTS.map(a=><AgentCard key={a.id} a={a} selected={agentId===a.id} form={agentForm?agentForm[a.id]:null} onSelect={()=>{if(played){setAgentId(a.id);notify(a.name+" takes over from MD2 (−50 fee).");}else if(!locked){setAgentId(a.id);notify(a.name+" is now picking for you.");}else notify("Locked — transfers open after final whistle.");}}/>)}</div>
+          <div style={{display:"grid",gap:9}}>{AGENTS.map(a=><AgentCard key={a.id} a={a} selected={agentId===a.id} form={agentForm?agentForm[a.id]:null} onSelect={()=>{if(played){setAgentId(a.id);track("agent_switch",{agent_id:a.id,timing:"post_match"});notify(a.name+" takes over from MD2 (−50 fee).");}else if(!locked){setAgentId(a.id);track("agent_switch",{agent_id:a.id,timing:"pre_lock"});notify(a.name+" is now picking for you.");}else notify("Locked — transfers open after final whistle.");}}/>)}</div>
         </div>}
 
         {tab==="table"&&<div className="fade">
@@ -383,7 +384,7 @@ export default function App(){
               <div style={{display:"flex",gap:7,flexWrap:"wrap",margin:"10px 0 12px"}}>
                 {AVATARS.map(a=><button key={a} onClick={()=>setPEmoji(a)} style={{width:40,height:40,borderRadius:11,fontSize:18,cursor:"pointer",border:"2px solid "+(pEmoji===a?P:"#E3E8E1"),background:pEmoji===a?"#EAF6EE":"#fff"}}>{a}</button>)}
               </div>
-              <button className="cta" disabled={!pName.trim()} onClick={()=>{setProfile({userId:genId(),name:pName.trim(),emoji:pEmoji});notify("Player card saved!");}}>Save player card</button>
+              <button className="cta" disabled={!pName.trim()} onClick={()=>{setProfile({userId:genId(),name:pName.trim(),emoji:pEmoji});track("player_card_save",{agent_id:agentId});notify("Player card saved!");}}>Save player card</button>
             </div>
           </>}
 
@@ -394,13 +395,13 @@ export default function App(){
               <button onClick={()=>setLeagueView(null)} style={{background:"none",border:"none",color:P,fontWeight:900,fontSize:13,cursor:"pointer",padding:0,marginBottom:8}}>‹ All leagues</button>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <h2 style={{fontSize:20,fontWeight:900,letterSpacing:"-0.03em",margin:0}}>{league.name}</h2>
-                <button onClick={()=>refreshL(leagueView)} style={{background:"none",border:"none",color:P,fontWeight:800,fontSize:13,cursor:"pointer"}}>{refreshing?"Loading…":"↻ Refresh"}</button>
+                <button onClick={()=>{track("league_refresh",{league_code:leagueView});refreshL(leagueView);}} style={{background:"none",border:"none",color:P,fontWeight:800,fontSize:13,cursor:"pointer"}}>{refreshing?"Loading…":"↻ Refresh"}</button>
               </div>
               <div style={{background:PD,color:"#fff",borderRadius:18,padding:"13px 16px",margin:"10px 0"}}>
                 <Eyebrow color="#9FD6B4">Invite friends</Eyebrow>
                 <div style={{fontSize:26,fontWeight:900,letterSpacing:"0.2em",margin:"4px 0 2px"}}>{league.code}</div>
                 <div style={{fontSize:11,color:"#9FD6B4",marginBottom:10,fontWeight:600}}>Or just send them the link — one tap to join.</div>
-                <button onClick={()=>{const link=window.location.origin+"?join="+league.code;navigator.clipboard.writeText(link).then(()=>notify("Link copied! 🔗 Share it anywhere."));}} style={{width:"100%",padding:"11px",borderRadius:12,border:"1.5px solid rgba(255,255,255,0.35)",background:"rgba(255,255,255,0.15)",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",letterSpacing:"0.01em"}}>📋 Copy invite link</button>
+                <button onClick={()=>{const link=window.location.origin+"?join="+league.code;navigator.clipboard.writeText(link).then(()=>{track("invite_link_copy",{league_code:league.code});notify("Link copied! 🔗 Share it anywhere.");});}} style={{width:"100%",padding:"11px",borderRadius:12,border:"1.5px solid rgba(255,255,255,0.35)",background:"rgba(255,255,255,0.15)",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",letterSpacing:"0.01em"}}>📋 Copy invite link</button>
               </div>
               <div style={{background:"#fff",borderRadius:18,overflow:"hidden",boxShadow:"0 4px 16px rgba(18,26,20,0.06)"}}>
                 {!rows.length&&<div style={{padding:16,fontSize:13,color:"#5B6660"}}>No players yet — share the code and hit refresh.</div>}
@@ -436,8 +437,8 @@ export default function App(){
               <div><div style={{fontWeight:800,fontSize:14}}>{profile.name}</div><div style={{fontSize:11,color:"#5B6660"}}>Your player card</div></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-              <button className="cta" style={{padding:12,fontSize:13}} onClick={()=>setLMode(lMode==="create"?null:"create")}>＋ Create</button>
-              <button className="cta ghost" style={{padding:12,fontSize:13}} onClick={()=>setLMode(lMode==="join"?null:"join")}>Join with code</button>
+              <button className="cta" style={{padding:12,fontSize:13}} onClick={()=>{if(lMode!=="create")track("league_create_open");setLMode(lMode==="create"?null:"create");}}>＋ Create</button>
+              <button className="cta ghost" style={{padding:12,fontSize:13}} onClick={()=>{if(lMode!=="join")track("league_join_open");setLMode(lMode==="join"?null:"join");}}>Join with code</button>
             </div>
             {lMode==="create"&&<div className="fade" style={{background:"#fff",borderRadius:16,padding:14,marginBottom:8,boxShadow:"0 4px 16px rgba(18,26,20,0.06)"}}>
               <input value={lName} onChange={e=>setLName(e.target.value)} placeholder="League name" maxLength={28} style={inp}/>
@@ -449,17 +450,17 @@ export default function App(){
             </div>}
             <Eyebrow>Your leagues</Eyebrow>
             <div style={{display:"grid",gap:7,marginTop:7}}>
-              {myLeagues.map(l=><button key={l.code} onClick={()=>{setLeagueView(l.code);refreshL(l.code);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",textAlign:"left",background:"#fff",border:"none",borderRadius:16,padding:"13px 15px",cursor:"pointer",boxShadow:"0 4px 16px rgba(18,26,20,0.06)"}}>
+              {myLeagues.map(l=><button key={l.code} onClick={()=>{track("league_open",{league_code:l.code});setLeagueView(l.code);refreshL(l.code);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",textAlign:"left",background:"#fff",border:"none",borderRadius:16,padding:"13px 15px",cursor:"pointer",boxShadow:"0 4px 16px rgba(18,26,20,0.06)"}}>
                 <div><div style={{fontWeight:900,fontSize:14}}>🏆 {l.name}</div><div style={{fontSize:11,color:"#5B6660"}}>Code: {l.code}</div></div>
                 <span style={{color:"#5B6660",fontWeight:900}}>›</span>
               </button>)}
-              <button onClick={()=>setLeagueView("demo")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",textAlign:"left",background:"#fff",border:"1.5px dashed #E3E8E1",borderRadius:16,padding:"13px 15px",cursor:"pointer"}}>
+              <button onClick={()=>{track("bots_league_view");setLeagueView("demo");}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",textAlign:"left",background:"#fff",border:"1.5px dashed #E3E8E1",borderRadius:16,padding:"13px 15px",cursor:"pointer"}}>
                 <div><div style={{fontWeight:900,fontSize:14}}>🤖 Bots League</div><div style={{fontSize:11,color:"#5B6660"}}>Demo — 9 simulated players</div></div>
                 <span style={{color:"#5B6660",fontWeight:900}}>›</span>
               </button>
             </div>
             <p style={{fontSize:11,color:"#5B6660",marginTop:10,lineHeight:1.5}}>League data is visible to all players who use this artifact.</p>
-            <div style={{marginTop:12}}><button className="cta ghost" onClick={resetAll}>Start over</button></div>
+            <div style={{marginTop:12}}><button className="cta ghost" onClick={()=>{track("app_reset");resetAll();}}>Start over</button></div>
           </>}
         </div>}
       </div>
@@ -469,7 +470,7 @@ export default function App(){
       <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:30,background:"rgba(255,255,255,.94)",backdropFilter:"blur(10px)",borderTop:"1px solid #E3E8E1"}}>
         <div style={{maxWidth:440,margin:"0 auto",display:"flex",padding:"4px 8px 10px"}}>
           {[["matches","⚽","Matches"],["agents","🃏","Agents"],["table","🏆","Leagues"]].map(([id,icon,label])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{flex:1,border:"none",background:"none",padding:"9px 0 0",cursor:"pointer"}}>
+            <button key={id} onClick={()=>{if(tab!==id)track("tab_change",{tab:id});setTab(id);}} style={{flex:1,border:"none",background:"none",padding:"9px 0 0",cursor:"pointer"}}>
               <div style={{fontSize:19,filter:tab===id?"none":"grayscale(1) opacity(.45)"}}>{icon}</div>
               <div style={{fontSize:11,fontWeight:800,color:tab===id?P:"#5B6660"}}>{label}</div>
             </button>
