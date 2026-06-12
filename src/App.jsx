@@ -52,6 +52,7 @@ const DARLINGS = ["Brazil","Mexico","USA","Germany"];
 const AVATARS = ["🦊","🐯","🦁","🐸","🐙","🦄","🐼","🦅"];
 
 function track(n,p){if(typeof window.gtag==="function")window.gtag("event",n,p||{});}
+function trackPage(path,title){if(typeof window.gtag==="function")window.gtag("event","page_view",{page_path:path,page_title:title,page_location:window.location.origin+path});}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
 function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 function poisson(lambda,rnd){const L=Math.exp(-lambda);let k=0,p=1;do{k++;p*=rnd();}while(p>L);return k-1;}
@@ -264,6 +265,14 @@ export default function App(){
   })();},[]);
 
   useEffect(()=>{if(!ready)return;saveState({step,agentId,favTeam,stakes,locked,seed,played,profile,myLeagues});},[ready,step,agentId,favTeam,stakes,locked,seed,played,profile,myLeagues]);
+
+  useEffect(()=>{
+    if(!ready)return;
+    const pages={welcome:["/","Welcome"],agent:["/onboarding/agent","Choose Agent"],team:["/onboarding/team","Pick Team"],matches:["/matches","Matchday 1"],agents:["/agents","Agents"],table:["/leagues","Leagues"]};
+    const key=step!=="app"?step:tab;
+    const[path,title]=pages[key]||["/"+key,key];
+    trackPage(path,title);
+  },[ready,step,tab]);
 
   const agent=AGENTS.find(a=>a.id===agentId)||AGENTS[0];
   const myPicks=useMemo(()=>Object.fromEntries(MATCHES.map(m=>[m.id,agentPicks(agentId||"quant",m,favTeam)])),[agentId,favTeam]);
